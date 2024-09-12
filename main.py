@@ -4,7 +4,7 @@ from discord.ext import commands
 import yt_dlp
 import asyncio
 
-token = "MTI4MDYyMTY5OTQ2OTE0ODI3Mw.Gh58F4.EiJNTOO1oaNnpDuksV5bvhmQ3zs3TCgpmrrNwQ"
+token = "No"
 client = commands.Bot(command_prefix="/", intents=discord.Intents.default())
 
 yt_dl_opts = {'format': 'bestaudio/best'}
