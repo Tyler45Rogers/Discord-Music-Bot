@@ -4,7 +4,7 @@ from discord.ext import commands
 import yt_dlp
 import asyncio
 
-token = "No"
+token = "TOKEN GOES HERE"
 client = commands.Bot(command_prefix="/", intents=discord.Intents.default())
 
 yt_dl_opts = {'format': 'bestaudio/best'}
@@ -29,11 +29,12 @@ async def on_ready():
         print(f"Synced {len(synced)} command(s)")
     except Exception as err:
         print(err)
+        
 
 
 
 
-#Searches Youtube and return video link
+#Searches Youtube and returns video link
 async def search_youtube(query):
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, lambda: ytdl.extract_info(f"ytsearch:{query}", download=False))
@@ -52,13 +53,15 @@ async def play(interaction: discord.Interaction, url: str):
 
     try:
         # Respond immediately to acknowledge the interaction
-        await interaction.response.send_message("Processing your request...")
+        await interaction.response.send_message("Processing your request...", delete_after=5)
         
         # Check if the input is a URL or a search term
         if not (url.startswith('http://') or url.startswith('https://')):
             url = await search_youtube(url)
             if not url:
-                await interaction.followup.send("No results found for the search term.")
+                message = await interaction.followup.send("No results found for the search term.")
+                await asyncio.sleep(3)  # Wait for 10 seconds
+                await message.delete()  # Delete the message
                 return
 
         # Process playback
@@ -67,7 +70,9 @@ async def play(interaction: discord.Interaction, url: str):
     except Exception as err:
         print("Error in play command:", err)
         if not interaction.response.is_done():
-            await interaction.followup.send("An error occurred while processing your request.")
+            message = await interaction.followup.send("An error occurred while processing your request.")
+            await asyncio.sleep(3)  # Wait for 10 seconds
+            await message.delete()  # Delete the message
 
 
 
@@ -91,7 +96,9 @@ async def process_playback(interaction: discord.Interaction, url: str, voice_cha
             # Add each video in the playlist to the queue
             queue.append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader})
 
-        await interaction.followup.send(f"Added playlist to the queue!")    
+        message = await interaction.followup.send(f"Added playlist to the queue!")
+        await asyncio.sleep(3)  # Wait for 10 seconds
+        await message.delete()  # Delete the message   
     else:
         # It's a single video
         audio_url = data['url']
@@ -99,9 +106,16 @@ async def process_playback(interaction: discord.Interaction, url: str, voice_cha
         uploader = data.get('uploader', 'Unknown Uploader')
         webpage_url = data.get('webpage_url', 'Unknown URL')
 
+        # Track the initial state of the queue
+        
         # Add Song to Queue
         queue.append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader})
-        await interaction.followup.send(f"Added **{title}** by **{uploader}** to the queue!\nURL: {webpage_url}")
+
+        # Send a different message if the queue was previously empty
+        if isPlaying:
+            message = await interaction.followup.send(f"Added **{title}** by **{uploader}** to the queue!\nURL: {webpage_url}")
+            await asyncio.sleep(3)  # Wait for 10 seconds
+            await message.delete()  # Delete the message
 
     # Check if the bot is already connected to the voice channel
     if not voice_client:
@@ -123,12 +137,12 @@ async def playSong(guild, voice_client, interaction: discord.Interaction):
         audio_url = song_info['url']
         title = song_info['title']
         uploader = song_info['uploader']
-
+        webpage_url = song_info['webpage_url']
         # Play Song
         player = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options, executable="C:\\ffmpeg\\ffmpeg.exe")
         voice_client.play(player)
-        await interaction.followup.send(f"Playing {title} by {uploader}!")
-
+        await interaction.followup.send(f"Playing **{title}** by **{uploader}**!\nURL: {webpage_url}")
+        
         # Wait for the song to finish playing
         while voice_client.is_playing():
             await asyncio.sleep(1)
@@ -150,7 +164,7 @@ async def playSong(guild, voice_client, interaction: discord.Interaction):
 @client.tree.command(name="queue", description="Display the current queue")
 async def viewQueue(interaction: discord.Interaction):
     if len(queue) == 0:
-        await interaction.response.send_message("There is currently nothing in the queue, add songs using '/play [url]'!")
+        await interaction.response.send_message("There is currently nothing in the queue, add songs using '/play [url]'!", delete_after=3)
         return
     message = "Queue:\n"
     
@@ -160,7 +174,7 @@ async def viewQueue(interaction: discord.Interaction):
         webpage_url = song_info['webpage_url']  # Use webpage_url to display the YouTube video link
         message += f"{index + 1}. {title} by {uploader}\n"
 
-    await interaction.response.send_message(message)
+    await interaction.response.send_message(message, delete_after=15)
     
 
 
@@ -168,25 +182,25 @@ async def viewQueue(interaction: discord.Interaction):
 @client.tree.command(name="clear", description="Clears the queue")
 async def clearQueue(interaction: discord.Interaction):
     if len(queue) == 0:
-        await interaction.response.send_message("The queue is already empty dummy, add songs using '/play [url]!")
+        await interaction.response.send_message("The queue is already empty dummy, add songs using '/play [url]!", delete_after=3)
     else:
         queue.clear()
-        await interaction.response.send_message("The queue has been cleared :)")
+        await interaction.response.send_message("The queue has been cleared :)", delete_after=3)
 
 
 
-#Skips songs, goes to next song in queue
-@client.tree.command(name="skip", description="Skips current song")
+@client.tree.command(name="skip")
 async def skip(interaction: discord.Interaction):
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
-    if voice_client and voice_client.is_playing() and len(queue) > 0:
+    if voice_client and voice_client.is_playing():
         voice_client.stop()
         isPlaying = False
-        songInfo = queue[0]
-        await interaction.response.send_message(f"Skipping to {songInfo['webpage_url']}")
-        await playSong(interaction.guild, voice_client, interaction)
-    else:
-        await interaction.response.send_message("No song to skip to")
+        await interaction.response.send_message(f"Skipping", delete_after=3)
+        if(len(queue) > 0):
+            await playSong(interaction.guild, voice_client, interaction)
+        else:
+            return
+    
 
 
 
@@ -196,9 +210,9 @@ async def pause(interaction: discord.Interaction):
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
     if voice_client and voice_client.is_playing():
         voice_client.pause()
-        await interaction.response.send_message("Paused")
+        await interaction.response.send_message("Paused", delete_after=3)
     else:
-        await interaction.response.send_message("No song to pause")
+        await interaction.response.send_message("No song to pause", delete_after=3)
 
 
 
@@ -208,9 +222,9 @@ async def resume(interaction: discord.Interaction):
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
     if voice_client and voice_client.is_paused():
         voice_client.resume()
-        await interaction.response.send_message("Resumed")
+        await interaction.response.send_message("Resumed", delete_after=3)
     else:
-        await interaction.response.send_message("No song to resume")
+        await interaction.response.send_message("No song to resume", delete_after=3)
 
 
 
@@ -224,8 +238,9 @@ async def stop(interaction: discord.Interaction):
 
         isPlaying = False
         await voice_client.disconnect()
-        await interaction.response.send_message("Stopped")
+        await interaction.response.send_message("Stopped", delete_after=3)
+        
     else:
-        await interaction.response.send_message("No song to stop")
+        await interaction.response.send_message("No song to stop", delete_after=3)
 
 client.run(token)
