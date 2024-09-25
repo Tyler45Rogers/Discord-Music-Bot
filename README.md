@@ -1,4 +1,4 @@
-Beezers Musty Discord Bot
+Beezers Discord Bot
 
 Supports
   Soundcloud
