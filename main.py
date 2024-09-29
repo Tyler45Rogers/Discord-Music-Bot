@@ -3,8 +3,9 @@ from discord import app_commands
 from discord.ext import commands
 import yt_dlp
 import asyncio
+import random
 
-token = "TOKEN GOES HERE"
+token = "TokenHere"
 client = commands.Bot(command_prefix="/", intents=discord.Intents.default())
 
 yt_dl_opts = {'format': 'bestaudio/best'}
@@ -243,4 +244,14 @@ async def stop(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("No song to stop", delete_after=3)
 
+
+
+# Shuffle command to shuffle the queue
+@client.tree.command(name="shuffle", description="Shuffle the current queue")
+async def shuffleQueue(interaction: discord.Interaction):
+    if len(queue) == 0:
+        await interaction.response.send_message("The queue is empty dummy", delete_after=3)
+    else:
+        random.shuffle(queue)  # Shuffle the queue
+        await interaction.response.send_message("The queue has been shuffled!", delete_after=3)
 client.run(token)
