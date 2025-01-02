@@ -4,8 +4,19 @@ from discord.ext import commands
 import yt_dlp
 import asyncio
 import random
+import spotipy
+from spotipy.oauth2 import SpotifyOAuth
 
-token = "TokenHere"
+#Spotify Variable
+sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
+    client_id="YOUR SPOTIFY ID",
+    client_secret="YOUR SPOTIFY SECRET",
+    redirect_uri="YOUR REDIRECT LINK",
+    scope="user-read-playback-state user-modify-playback-state",
+    cache_path="PATH FOR CACHE"
+))
+
+token = "YOUR TOKEN HERE"
 client = commands.Bot(command_prefix="/", intents=discord.Intents.default())
 
 yt_dl_opts = {'format': 'bestaudio/best'}
@@ -17,6 +28,35 @@ ffmpeg_options = {
 
 queue = []
 isPlaying = False
+
+#Play Count Variables - For Stats
+#File path
+playCountsPath = "PATH TO STORE STATS"
+#Dictionary with each count
+playCounts = {}
+
+#Loads play counts from file
+def load_play_counts():
+    global playCounts
+    try:
+        with open(playCountsPath, "r") as f: #Opens file
+            for line in f:
+                if line.strip(): #Skips blank lines
+                    title, count = line.strip().rsplit(",",1) #stores url and count
+                    playCounts[title] = int(count) #adds to dictionary
+    except FileNotFoundError:
+        #Whoops, no file found
+        print("Create your file silly, it wasnt found")
+
+#Saves play counts to file
+def save_playcounts():
+    print(f"Saving play counts to {playCountsPath}")
+    with open(playCountsPath, "w") as f: #Open file
+        for title, count in playCounts.items(): #Loop thru counts
+            f.write(f"{title},{count}\n") #Write to file
+
+
+
 
 
 discord.Intents.message_content = True
@@ -56,6 +96,30 @@ async def play(interaction: discord.Interaction, url: str):
         # Respond immediately to acknowledge the interaction
         await interaction.response.send_message("Processing your request...", delete_after=5)
         
+        #Check for spotify url's - if spotify url is given we will search youtube for the song
+        if "spotify.com" in url:
+            #Get Song Info (Name and Artist)
+            try:
+                spotifyData = sp.track(url)
+                spotName = spotifyData['name']
+                spotArtist = spotifyData['artists'][0]['name']
+                ytSearch = f"{spotName} {spotArtist} song"
+
+                #Search song
+                url = await search_youtube(ytSearch)
+                if not url:
+                    message = await interaction.followup.send("No results found for the requested song, this song may only be on spotify. Try finging a direct link from youtube or soundcloud.")
+                    await asyncio.sleep(3)
+                    await message.delete()
+                    return
+            except Exception as spotify_error:
+                message = await interaction.followup.send("Cant process spotify link, ruh roh")
+                print("Spotify Link Brokey")
+                await asyncio.sleep(3)
+                await message.delete()
+                return
+
+
         # Check if the input is a URL or a search term
         if not (url.startswith('http://') or url.startswith('https://')):
             url = await search_youtube(url)
@@ -140,8 +204,22 @@ async def playSong(guild, voice_client, interaction: discord.Interaction):
         uploader = song_info['uploader']
         webpage_url = song_info['webpage_url']
         # Play Song
-        player = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options, executable="C:\\ffmpeg\\ffmpeg.exe")
+        player = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options, executable="ffmpeg")
         voice_client.play(player)
+
+
+        #Add to counts
+        
+        titleToCount = title.lower() + " by " + uploader.lower()
+        if titleToCount in playCounts:  # Title exists
+            count = playCounts[titleToCount]  #Get the current play count
+            playCounts[titleToCount] = count + 1 # Increment the play count
+        else:  # Title doesn't exist
+            playCounts[titleToCount] = 1  # Initialize with a count of 1
+        
+        #Save Counts
+        save_playcounts()
+
         await interaction.followup.send(f"Playing **{title}** by **{uploader}**!\nURL: {webpage_url}")
         
         # Wait for the song to finish playing
@@ -189,7 +267,7 @@ async def clearQueue(interaction: discord.Interaction):
         await interaction.response.send_message("The queue has been cleared :)", delete_after=3)
 
 
-
+#Skips Current Song
 @client.tree.command(name="skip")
 async def skip(interaction: discord.Interaction):
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
@@ -254,4 +332,16 @@ async def shuffleQueue(interaction: discord.Interaction):
     else:
         random.shuffle(queue)  # Shuffle the queue
         await interaction.response.send_message("The queue has been shuffled!", delete_after=3)
+
+#Upload File With Stats of Songs
+@client.tree.command(name="get_stats", description="Uploads text file of songs in name,number format")
+async def getStats(interaction: discord.Interaction):
+    try:
+        await interaction.response.send_message("Uploading Stats File...", ephemeral=True)
+        await interaction.followup.send(file=discord.File(playCountsPath), ephemeral=True)
+    except FileNotFoundError:
+        await interaction.response.send_message("File Not Found", ephemeral=True)
+
+
+load_play_counts()
 client.run(token)
