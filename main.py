@@ -1,3 +1,4 @@
+#imports
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -6,17 +7,21 @@ import asyncio
 import random
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+#I dont really understand fully but i need to change encoding for songs with wacky characters (I hate you for this panchiko)
+import os
+os.environ["PYTHONIOENCODING"] = "utf-8"
 
 #Spotify Variable
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-    client_id="YOUR SPOTIFY ID",
-    client_secret="YOUR SPOTIFY SECRET",
-    redirect_uri="YOUR REDIRECT LINK",
-    scope="user-read-playback-state user-modify-playback-state",
-    cache_path="PATH FOR CACHE"
+    client_id="ID",
+    client_secret="SECRET",
+    redirect_uri="REDIR",
+    scope="SCOPE",
+    cache_path="CACHE"
 ))
 
-token = "YOUR TOKEN HERE"
+
+token = "TOKEN"
 client = commands.Bot(command_prefix="/", intents=discord.Intents.default())
 
 yt_dl_opts = {'format': 'bestaudio/best'}
@@ -31,7 +36,7 @@ isPlaying = False
 
 #Play Count Variables - For Stats
 #File path
-playCountsPath = "PATH TO STORE STATS"
+playCountsPath = "C:\\botStuff\\botStats.txt"
 #Dictionary with each count
 playCounts = {}
 
@@ -39,7 +44,7 @@ playCounts = {}
 def load_play_counts():
     global playCounts
     try:
-        with open(playCountsPath, "r") as f: #Opens file
+        with open(playCountsPath, "r", encoding="utf-8", errors="replace") as f: #Opens file
             for line in f:
                 if line.strip(): #Skips blank lines
                     title, count = line.strip().rsplit(",",1) #stores url and count
@@ -203,8 +208,9 @@ async def playSong(guild, voice_client, interaction: discord.Interaction):
         title = song_info['title']
         uploader = song_info['uploader']
         webpage_url = song_info['webpage_url']
+        requester = interaction.user.mention
         # Play Song
-        player = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options, executable="ffmpeg")
+        player = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options, executable="C:\\botStuff\\ffmpeg.exe")
         voice_client.play(player)
 
 
@@ -218,9 +224,13 @@ async def playSong(guild, voice_client, interaction: discord.Interaction):
             playCounts[titleToCount] = 1  # Initialize with a count of 1
         
         #Save Counts
-        save_playcounts()
+        try:
+            save_playcounts()
+        except Exception as err:
+            #Probably some encoding issue womp womp
+            print("Error saving the play count, idk why")
 
-        await interaction.followup.send(f"Playing **{title}** by **{uploader}**!\nURL: {webpage_url}")
+        await interaction.followup.send(f"Playing **{title}** by **{uploader}**!\nRequested By: {requester}\nURL: {webpage_url}")
         
         # Wait for the song to finish playing
         while voice_client.is_playing():
@@ -340,7 +350,7 @@ async def getStats(interaction: discord.Interaction):
         await interaction.response.send_message("Uploading Stats File...", ephemeral=True)
         await interaction.followup.send(file=discord.File(playCountsPath), ephemeral=True)
     except FileNotFoundError:
-        await interaction.response.send_message("File Not Found", ephemeral=True)
+        await interaction.response.send_message("Beezer is stupid/bot broke, file not found contact someone idk who tho (Probably Beezer though)", ephemeral=True)
 
 
 load_play_counts()
