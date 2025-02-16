@@ -1,5 +1,6 @@
 #imports
 import discord
+from collections import defaultdict
 from discord import app_commands
 from discord.ext import commands
 import yt_dlp
@@ -13,15 +14,15 @@ os.environ["PYTHONIOENCODING"] = "utf-8"
 
 #Spotify Variable
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-    client_id="ID",
-    client_secret="SECRET",
-    redirect_uri="REDIR",
-    scope="SCOPE",
-    cache_path="CACHE"
+    client_id="NO",
+    client_secret="NO",
+    redirect_uri="NO",
+    scope="NO",
+    cache_path="NO"
 ))
 
 
-token = "TOKEN"
+token = "NO"
 client = commands.Bot(command_prefix="/", intents=discord.Intents.default())
 
 yt_dl_opts = {'format': 'bestaudio/best'}
@@ -31,8 +32,8 @@ ffmpeg_options = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 }
 
-queue = []
-isPlaying = False
+queues = defaultdict(list)  # Stores queue per guild
+isPlaying = defaultdict(bool)  # Tracks playing state per guild
 
 #Play Count Variables - For Stats
 #File path
@@ -150,6 +151,7 @@ async def play(interaction: discord.Interaction, url: str):
 #Takes input to play command and uses url to play song using playSong()
 async def process_playback(interaction: discord.Interaction, url: str, voice_channel, voice_client):
     global isPlaying
+    guild_id = interaction.guild.id #Find the server
  # Get Song Info
     loop = asyncio.get_event_loop()
     data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
@@ -164,7 +166,7 @@ async def process_playback(interaction: discord.Interaction, url: str, voice_cha
             webpage_url = entry.get('webpage_url', 'Unknown URL')
             
             # Add each video in the playlist to the queue
-            queue.append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader})
+            queues[guild_id].append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader})
 
         message = await interaction.followup.send(f"Added playlist to the queue!")
         await asyncio.sleep(3)  # Wait for 10 seconds
@@ -179,10 +181,10 @@ async def process_playback(interaction: discord.Interaction, url: str, voice_cha
         # Track the initial state of the queue
         
         # Add Song to Queue
-        queue.append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader})
+        queues[guild_id].append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader})
 
         # Send a different message if the queue was previously empty
-        if isPlaying:
+        if isPlaying[guild_id]:
             message = await interaction.followup.send(f"Added **{title}** by **{uploader}** to the queue!\nURL: {webpage_url}")
             await asyncio.sleep(3)  # Wait for 10 seconds
             await message.delete()  # Delete the message
@@ -193,17 +195,18 @@ async def process_playback(interaction: discord.Interaction, url: str, voice_cha
     elif voice_client.channel != voice_channel:
         await voice_client.move_to(voice_channel)
 
-    if not isPlaying:
+    if not isPlaying[guild_id]:
         await playSong(interaction.guild, voice_client, interaction)
 
 
 #Plays songs from queue
 async def playSong(guild, voice_client, interaction: discord.Interaction):
     global isPlaying
-    if len(queue) > 0:
+    guild_id = interaction.guild.id #Find what server is being used
+    if len(queues[guild_id]) > 0:
         
-        isPlaying = True
-        song_info = queue.pop(0)
+        isPlaying[guild_id] = True
+        song_info = queues[guild_id].pop(0)
         audio_url = song_info['url']
         title = song_info['title']
         uploader = song_info['uploader']
@@ -237,14 +240,14 @@ async def playSong(guild, voice_client, interaction: discord.Interaction):
             await asyncio.sleep(1)
 
         # Recursively Call again to play next song in queue
-        if len(queue) > 0:
+        if len(queues[guild_id]) > 0:
             await playSong(interaction.guild, voice_client, interaction)
         else:
-            isPlaying = False
+            isPlaying[guild_id] = False
             
         
     else:
-        isPlaying = False
+        isPlaying[guild_id] = False
         print("Empty Queue")
 
 
@@ -252,12 +255,13 @@ async def playSong(guild, voice_client, interaction: discord.Interaction):
 #Displays the queue
 @client.tree.command(name="queue", description="Display the current queue")
 async def viewQueue(interaction: discord.Interaction):
-    if len(queue) == 0:
+    guild_id = interaction.guild.id
+    if len(queues[guild_id]) == 0:
         await interaction.response.send_message("There is currently nothing in the queue, add songs using '/play [url]'!", delete_after=3)
         return
     message = "Queue:\n"
     
-    for index, song_info in enumerate(queue):
+    for index, song_info in enumerate(queues[guild_id]):
         title = song_info['title']
         uploader = song_info['uploader']
         webpage_url = song_info['webpage_url']  # Use webpage_url to display the YouTube video link
@@ -270,22 +274,24 @@ async def viewQueue(interaction: discord.Interaction):
 #Clears the queue
 @client.tree.command(name="clear", description="Clears the queue")
 async def clearQueue(interaction: discord.Interaction):
-    if len(queue) == 0:
+    guild_id = interaction.guild.id
+    if len(queues[guild_id]) == 0:
         await interaction.response.send_message("The queue is already empty dummy, add songs using '/play [url]!", delete_after=3)
     else:
-        queue.clear()
+        queues[guild_id].clear()
         await interaction.response.send_message("The queue has been cleared :)", delete_after=3)
 
 
 #Skips Current Song
 @client.tree.command(name="skip")
 async def skip(interaction: discord.Interaction):
+    guild_id = interaction.guild.id
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
     if voice_client and voice_client.is_playing():
         voice_client.stop()
-        isPlaying = False
+        isPlaying[guild_id] = False
         await interaction.response.send_message(f"Skipping", delete_after=3)
-        if(len(queue) > 0):
+        if(len(queues[guild_id]) > 0):
             await playSong(interaction.guild, voice_client, interaction)
         else:
             return
@@ -296,6 +302,7 @@ async def skip(interaction: discord.Interaction):
 #Pauses the song actively playing
 @client.tree.command(name="pause", description="Pause the current song")
 async def pause(interaction: discord.Interaction):
+    guild_id = interaction.guild.id
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
     if voice_client and voice_client.is_playing():
         voice_client.pause()
@@ -320,12 +327,13 @@ async def resume(interaction: discord.Interaction):
 #Stops the song playing, clears queue, disconnects from vc
 @client.tree.command(name="stop", description="Stop playing and disconnect")
 async def stop(interaction: discord.Interaction):
+    guild_id = interaction.guild.id
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
     if voice_client and voice_client.is_playing():
         voice_client.stop()
-        queue.clear()
+        queues[guild_id].clear()
 
-        isPlaying = False
+        isPlaying[guild_id] = False
         await voice_client.disconnect()
         await interaction.response.send_message("Stopped", delete_after=3)
         
@@ -337,10 +345,11 @@ async def stop(interaction: discord.Interaction):
 # Shuffle command to shuffle the queue
 @client.tree.command(name="shuffle", description="Shuffle the current queue")
 async def shuffleQueue(interaction: discord.Interaction):
-    if len(queue) == 0:
+    guild_id = interaction.guild.id
+    if len(queues[guild_id]) == 0:
         await interaction.response.send_message("The queue is empty dummy", delete_after=3)
     else:
-        random.shuffle(queue)  # Shuffle the queue
+        random.shuffle(queues[guild_id])  # Shuffle the queue
         await interaction.response.send_message("The queue has been shuffled!", delete_after=3)
 
 #Upload File With Stats of Songs
@@ -350,7 +359,7 @@ async def getStats(interaction: discord.Interaction):
         await interaction.response.send_message("Uploading Stats File...", ephemeral=True)
         await interaction.followup.send(file=discord.File(playCountsPath), ephemeral=True)
     except FileNotFoundError:
-        await interaction.response.send_message("Beezer is stupid/bot broke, file not found contact someone idk who tho (Probably Beezer though)", ephemeral=True)
+        await interaction.response.send_message("Beezer is stupid/bot broke, file not found contact someone idk who tho", ephemeral=True)
 
 
 load_play_counts()
