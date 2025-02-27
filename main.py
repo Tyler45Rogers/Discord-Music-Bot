@@ -14,15 +14,15 @@ os.environ["PYTHONIOENCODING"] = "utf-8"
 
 #Spotify Variable
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-    client_id="NO",
-    client_secret="NO",
-    redirect_uri="NO",
-    scope="NO",
-    cache_path="NO"
+    client_id="USE YOUR OWN",
+    client_secret="USE YOUR OWN",
+    redirect_uri="USE YOUR OWN",
+    scope="USE YOUR OWN",
+    cache_path="USE YOUR OWN"
 ))
 
 
-token = "NO"
+token = "USE YOUR OWN"
 client = commands.Bot(command_prefix="/", intents=discord.Intents.default())
 
 yt_dl_opts = {'format': 'bestaudio/best'}
@@ -34,6 +34,8 @@ ffmpeg_options = {
 
 queues = defaultdict(list)  # Stores queue per guild
 isPlaying = defaultdict(bool)  # Tracks playing state per guild
+isLooping = defaultdict(bool) #Tracks whether looping is enabled or not per guild
+current_song = defaultdict(list) #Stores current song per guild
 
 #Play Count Variables - For Stats
 #File path
@@ -164,9 +166,10 @@ async def process_playback(interaction: discord.Interaction, url: str, voice_cha
             title = entry.get('title', 'Unknown Title')
             uploader = entry.get('uploader', 'Unknown Uploader')
             webpage_url = entry.get('webpage_url', 'Unknown URL')
+            requester = interaction.user
             
             # Add each video in the playlist to the queue
-            queues[guild_id].append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader})
+            queues[guild_id].append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader, 'requester': requester})
 
         message = await interaction.followup.send(f"Added playlist to the queue!")
         await asyncio.sleep(3)  # Wait for 10 seconds
@@ -177,11 +180,12 @@ async def process_playback(interaction: discord.Interaction, url: str, voice_cha
         title = data.get('title', 'Unknown Title')
         uploader = data.get('uploader', 'Unknown Uploader')
         webpage_url = data.get('webpage_url', 'Unknown URL')
+        requester = interaction.user
 
         # Track the initial state of the queue
         
         # Add Song to Queue
-        queues[guild_id].append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader})
+        queues[guild_id].append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader, 'requester': requester})
 
         # Send a different message if the queue was previously empty
         if isPlaying[guild_id]:
@@ -201,7 +205,7 @@ async def process_playback(interaction: discord.Interaction, url: str, voice_cha
 
 #Plays songs from queue
 async def playSong(guild, voice_client, interaction: discord.Interaction):
-    global isPlaying
+    global isPlaying, isLooping, current_song
     guild_id = interaction.guild.id #Find what server is being used
     if len(queues[guild_id]) > 0:
         
@@ -211,7 +215,11 @@ async def playSong(guild, voice_client, interaction: discord.Interaction):
         title = song_info['title']
         uploader = song_info['uploader']
         webpage_url = song_info['webpage_url']
-        requester = interaction.user.mention
+        requester = song_info['requester']
+
+        #Store current song info
+        current_song[guild_id] = ({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader, 'requester': requester})
+
         # Play Song
         player = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options, executable="C:\\botStuff\\ffmpeg.exe")
         voice_client.play(player)
@@ -233,8 +241,12 @@ async def playSong(guild, voice_client, interaction: discord.Interaction):
             #Probably some encoding issue womp womp
             print("Error saving the play count, idk why")
 
-        await interaction.followup.send(f"Playing **{title}** by **{uploader}**!\nRequested By: {requester}\nURL: {webpage_url}")
+        await interaction.followup.send(f"Playing **{title}** by **{uploader}**!\nRequested By: **{requester}**\nLooping: **{isLooping[guild_id]}**\nURL: {webpage_url}")
         
+        #Check if looping is enabled, if looping add the song back to the end of the queue
+        if(isLooping[guild_id]):
+            queues[guild_id].append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader, 'requester': requester})
+
         # Wait for the song to finish playing
         while voice_client.is_playing():
             await asyncio.sleep(1)
@@ -334,13 +346,12 @@ async def stop(interaction: discord.Interaction):
         queues[guild_id].clear()
 
         isPlaying[guild_id] = False
+        isLooping[guild_id] = False
         await voice_client.disconnect()
-        await interaction.response.send_message("Stopped", delete_after=3)
+        await interaction.response.send_message("Stopped, if looping was enabled it has been disabled", delete_after=3)
         
     else:
         await interaction.response.send_message("No song to stop", delete_after=3)
-
-
 
 # Shuffle command to shuffle the queue
 @client.tree.command(name="shuffle", description="Shuffle the current queue")
@@ -361,6 +372,28 @@ async def getStats(interaction: discord.Interaction):
     except FileNotFoundError:
         await interaction.response.send_message("Beezer is stupid/bot broke, file not found contact someone idk who tho", ephemeral=True)
 
+#Loop command to loop songs
+@client.tree.command(name='loop', description='Loops the queue starting form the current song')
+async def loop(interaction: discord.Interaction):
+    global isLooping, current_song
+    guild_id = interaction.guild.id
+    #Check if looping already
+    if (isLooping[guild_id]):
+        isLooping[guild_id] = False
+        await interaction.response.send_message("Looping disabled", delete_after=3)
+    else:
+        isLooping[guild_id] = True
+        await interaction.response.send_message("Looping enabled, all songs in the queue will loop starting from the current song", delete_after=3)
+
+    #If a song is currently playing, add it to the queue so it is played again, only if looping was just enabled
+    if(isPlaying[guild_id] and isLooping[guild_id]):
+        audio_url = current_song[guild_id]['url']
+        webpage_url = current_song[guild_id]['webpage_url']
+        title = current_song[guild_id]['title']
+        uploader = current_song[guild_id]['uploader']
+        requester = current_song[guild_id]['requester']
+
+        queues[guild_id].append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader, 'requester': requester})
 
 load_play_counts()
 client.run(token)
