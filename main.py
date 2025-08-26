@@ -1,4 +1,6 @@
 #imports
+import os, sys, requests, subprocess
+from dotenv import load_dotenv
 import discord
 from collections import defaultdict
 from discord import app_commands
@@ -12,17 +14,50 @@ from spotipy.oauth2 import SpotifyOAuth
 import os
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
+load_dotenv()
+
 #Spotify Variable
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-    client_id="USE YOUR OWN",
-    client_secret="USE YOUR OWN",
-    redirect_uri="USE YOUR OWN",
-    scope="USE YOUR OWN",
-    cache_path="USE YOUR OWN"
+    client_id=os.getenv("SPOTIPY_CLIENT_ID"),
+    client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
+    redirect_uri="http://localhost:8888/callback",
+    scope="user-read-playback-state user-modify-playback-state",
+    cache_path="C:\\botStuff\\spotify_token_cache"
 ))
 
 
-token = "USE YOUR OWN"
+VERSION = "1.0.0"
+
+VERSION_URL = "https://raw.githubusercontent.com/Tyler45Rogers/Discord-Music-Bot/refs/heads/main/Version.txt"
+BOT_URL = "https://raw.githubusercontent.com/Tyler45Rogers/Discord-Music-Bot/refs/heads/main/main.py"
+
+def checkUpdate():
+    try:
+        latest = requests.get(VERSION_URL, timeout=10).text.strip()
+        if latest != VERSION:
+            print(f"New version {latest}: found. Updating")
+
+            #Download Update
+            r = requests.get(BOT_URL, timeout=10)
+            with open("updatedVersion.py", "wb") as f:
+                f.write(r.content)
+
+            #Replace
+            os.replace("updatedVersion.py", "main.py")
+
+            #Restart
+            subprocess.Popen([sys.executable, "main.py"])
+            sys.exit()
+        else:
+            print("No Update")
+
+    except Exception as e:
+        print("Update Failed Womp Womp", e)
+                  
+checkUpdate()
+
+
+token = os.getenv("DISCORD_TOKEN")
 client = commands.Bot(command_prefix="/", intents=discord.Intents.default())
 
 yt_dl_opts = {'format': 'bestaudio/best'}
