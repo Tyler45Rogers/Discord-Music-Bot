@@ -430,6 +430,20 @@ async def loop(interaction: discord.Interaction):
         requester = current_song[guild_id]['requester']
 
         queues[guild_id].append({'url': audio_url, 'webpage_url': webpage_url, 'title': title, 'uploader': uploader, 'requester': requester})
+#Restart Command
+@client.tree.command(name="restart", description="Restart the bot")
+async def restart(interaction: discord.Interaction):
+    await interaction.response.send_message("Restarting bot...", delete_after=3)
+
+    # Start a new instance of the bot
+    subprocess.Popen([sys.executable, "main.py"])
+
+    # Exit the current instance
+    await client.close()
+    sys.exit()
+
+
+
 
 load_play_counts()
 client.run(token)
