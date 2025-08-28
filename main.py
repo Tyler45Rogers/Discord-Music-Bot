@@ -436,7 +436,7 @@ async def restart(interaction: discord.Interaction):
     await interaction.response.send_message("Restarting bot...", delete_after=3)
 
     # Start a new instance of the bot
-    subprocess.Popen([sys.executable, r"PATH TO THE BOT ITSELF HERE"])
+    subprocess.Popen([sys.executable, os.getenv("BOT_PATH")])
 
     # Exit the current instance
     await client.close()
@@ -446,5 +446,6 @@ async def restart(interaction: discord.Interaction):
 
 load_play_counts()
 client.run(token)
+
 
 
