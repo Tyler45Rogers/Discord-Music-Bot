@@ -26,35 +26,52 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
 ))
 
 
-VERSION = "1.0.3"
-print(f"Version {VERSION}")
+VERSION = "1.0.2"
+print("Version 1.0.1")
 
 VERSION_URL = "https://raw.githubusercontent.com/Tyler45Rogers/Discord-Music-Bot/refs/heads/main/Version.txt"
 BOT_URL = "https://raw.githubusercontent.com/Tyler45Rogers/Discord-Music-Bot/refs/heads/main/main.py"
 
 def checkUpdate():
     try:
+        #Get the latest version from GitHub
         latest = requests.get(VERSION_URL, timeout=10).text.strip()
         if latest != VERSION:
-            print(f"New version {latest}: found. Updating")
+            print(f"New version {latest} found! Updating...")
 
-            #Download Update
+            #Download new bot version to a temp file
             r = requests.get(BOT_URL, timeout=10)
             with open("updatedVersion.py", "wb") as f:
                 f.write(r.content)
 
-            #Replace
-            os.replace("updatedVersion.py", "main.py")
+            #Helper script to swap files after exit
+            helper_code = f"""
+import os, sys, time, shutil, subprocess
 
-            #Restart
-            subprocess.Popen([sys.executable, "main.py"])
+time.sleep(1)  # Wait for old bot to exit
+
+# Replace old main.py with the new version
+shutil.move("updatedVersion.py", "main.py")
+
+# Restart the bot
+subprocess.Popen([sys.executable, "main.py"])
+
+# Remove this helper script
+os.remove("update_helper.py")
+"""
+            with open("update_helper.py", "w") as f:
+                f.write(helper_code)
+
+            #Launch helper and exit current bot
+            subprocess.Popen([sys.executable, "update_helper.py"])
             sys.exit()
         else:
-            print("No Update")
+            print("No update needed.")
 
     except Exception as e:
         print("Update Failed Womp Womp", e)
-                  
+
+#Call updater at start
 checkUpdate()
 
 
@@ -68,8 +85,8 @@ ffmpeg_options = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 }
 
-queues = defaultdict(list)  # Stores queue per guild
-isPlaying = defaultdict(bool)  # Tracks playing state per guild
+queues = defaultdict(list)  #Stores queue per guild
+isPlaying = defaultdict(bool)  #Tracks playing state per guild
 isLooping = defaultdict(bool) #Tracks whether looping is enabled or not per guild
 current_song = defaultdict(list) #Stores current song per guild
 
@@ -446,7 +463,5 @@ async def restart(interaction: discord.Interaction):
 
 load_play_counts()
 client.run(token)
-
-
 
 
