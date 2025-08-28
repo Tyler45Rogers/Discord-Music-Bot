@@ -26,8 +26,8 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
 ))
 
 
-VERSION = "1.0.2"
-print("Version 1.0.1")
+VERSION = "1.0.3"
+print(f"Version {VERSION}")
 
 VERSION_URL = "https://raw.githubusercontent.com/Tyler45Rogers/Discord-Music-Bot/refs/heads/main/Version.txt"
 BOT_URL = "https://raw.githubusercontent.com/Tyler45Rogers/Discord-Music-Bot/refs/heads/main/main.py"
@@ -446,6 +446,7 @@ async def restart(interaction: discord.Interaction):
 
 load_play_counts()
 client.run(token)
+
 
 
 
