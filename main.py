@@ -36,46 +36,41 @@ print(f"Version {VERSION}")
 
 def checkUpdate():
     try:
-        #Get the latest version from GitHub
         latest = requests.get(VERSION_URL, timeout=10).text.strip()
         if latest != VERSION:
             print(f"New version {latest} found! Updating...")
 
-            #Download new bot version to a temp file
-            r = requests.get(BOT_URL, timeout=10)
-            with open("updatedVersion.py", "wb") as f:
+            # Download new bot version in the same folder
+            folder = os.path.dirname(BOT_PATH)
+            updated_file = os.path.join(folder, "updatedVersion.py")
+            r = requests.get(BOT_URL + f"?t={time.time()}", timeout=10)
+            with open(updated_file, "wb") as f:
                 f.write(r.content)
 
-            #Helper script to swap files after exit
+            # Helper script in the same folder
+            helper_path = os.path.join(folder, "update_helper.py")
             helper_code = f"""
-import os, sys, time, shutil, subprocess
+import os, sys, shutil, subprocess, time
 
-time.sleep(1)  # Wait for old bot to exit
+# Wait until main.py process exits
+time.sleep(2)
 
-# Replace old main.py with the new version
-shutil.move("updatedVersion.py", r"{BOT_PATH}")
-
-# Restart the bot
+shutil.move(r"{updated_file}", r"{BOT_PATH}")
 subprocess.Popen([sys.executable, r"{BOT_PATH}"])
-
-# Remove this helper script
-os.remove("update_helper.py")
+os.remove(r"{helper_path}")
 """
-            with open("update_helper.py", "w") as f:
+            with open(helper_path, "w") as f:
                 f.write(helper_code)
 
-            #Launch helper and exit current bot
-            subprocess.Popen([sys.executable, "update_helper.py"])
+            # Launch helper and exit current bot
+            subprocess.Popen([sys.executable, helper_path])
             sys.exit()
         else:
-            print("No update needed.")
-
+            print(f"No update needed. Current version: {VERSION}")
     except Exception as e:
         print("Update Failed Womp Womp", e)
 
-#Call updater at start
 checkUpdate()
-
 
 token = os.getenv("DISCORD_TOKEN")
 client = commands.Bot(command_prefix="/", intents=discord.Intents.default())
@@ -465,6 +460,7 @@ async def restart(interaction: discord.Interaction):
 
 load_play_counts()
 client.run(token)
+
 
 
 
