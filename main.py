@@ -52,10 +52,10 @@ import os, sys, time, shutil, subprocess
 time.sleep(1)  # Wait for old bot to exit
 
 # Replace old main.py with the new version
-shutil.move("updatedVersion.py", {os.getenv("BOT_PATH")})
+shutil.move("updatedVersion.py", r"{BOT_PATH}")
 
 # Restart the bot
-subprocess.Popen([sys.executable, {os.getenv("BOT_PATH")}])
+subprocess.Popen([sys.executable, r"{BOT_PATH}"])
 
 # Remove this helper script
 os.remove("update_helper.py")
@@ -464,6 +464,7 @@ async def restart(interaction: discord.Interaction):
 
 load_play_counts()
 client.run(token)
+
 
 
 
