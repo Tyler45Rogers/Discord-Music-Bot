@@ -436,11 +436,10 @@ async def restart(interaction: discord.Interaction):
     await interaction.response.send_message("Restarting bot...", delete_after=3)
 
     # Start a new instance of the bot
-    subprocess.Popen([sys.executable, "main.py"])
+    subprocess.Popen([sys.executable, r"PATH TO THE BOT ITSELF HERE"])
 
     # Exit the current instance
     await client.close()
-    sys.exit()
 
 
 
