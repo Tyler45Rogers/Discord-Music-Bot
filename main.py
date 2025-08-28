@@ -34,7 +34,6 @@ BOT_URL = "https://raw.githubusercontent.com/Tyler45Rogers/Discord-Music-Bot/ref
 VERSION = "1.0.4"
 print(f"Version {VERSION}")
 
-
 def checkUpdate():
     try:
         #Get the latest version from GitHub
@@ -466,6 +465,7 @@ async def restart(interaction: discord.Interaction):
 
 load_play_counts()
 client.run(token)
+
 
 
 
